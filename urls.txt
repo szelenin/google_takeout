@@ -1,0 +1,4 @@
+# Google Takeout Download URLs
+# Add your download URLs here, one per line
+# Example:
+# https://takeout-download.usercontent.google.com/download/takeout-20250823T223815Z-1-139.zip?j=60fa8ba8-2007-4f9c-9f9f-f6b317b86fe3&i=138&user=996214168750&authuser=0
