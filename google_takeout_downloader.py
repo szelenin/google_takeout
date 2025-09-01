@@ -31,7 +31,7 @@ class DownloadStatus:
     retry_count: int = 0
 
 class TakeoutDownloader:
-    def __init__(self, output_dir: str, max_workers: int = 4, chunk_size: int = 8192):
+    def __init__(self, output_dir: str, max_workers: int = 4, chunk_size: int = 8192, cookies_file: Optional[str] = None):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.max_workers = max_workers
@@ -39,9 +39,43 @@ class TakeoutDownloader:
         self.progress_file = self.output_dir / "download_progress.json"
         self.downloads: Dict[str, DownloadStatus] = {}
         self.lock = threading.Lock()
+        self.cookies = {}
+        
+        # Load cookies if provided
+        if cookies_file:
+            self.load_cookies(cookies_file)
         
         # Load existing progress
         self.load_progress()
+
+    def load_cookies(self, cookies_file: str):
+        """Load cookies from file (JSON or Netscape format)"""
+        try:
+            with open(cookies_file, 'r') as f:
+                content = f.read()
+                
+                # Try JSON format first
+                if content.strip().startswith('[') or content.strip().startswith('{'):
+                    cookies_data = json.loads(content)
+                    if isinstance(cookies_data, list):
+                        # Cookie-Editor format
+                        for cookie in cookies_data:
+                            if 'name' in cookie and 'value' in cookie:
+                                self.cookies[cookie['name']] = cookie['value']
+                    elif isinstance(cookies_data, dict):
+                        # Simple key-value format
+                        self.cookies = cookies_data
+                else:
+                    # Netscape cookie format (from curl)
+                    for line in content.split('\n'):
+                        if line and not line.startswith('#'):
+                            parts = line.strip().split('\t')
+                            if len(parts) >= 7:
+                                self.cookies[parts[5]] = parts[6]
+                
+                print(f"Loaded {len(self.cookies)} cookies from {cookies_file}")
+        except Exception as e:
+            print(f"Warning: Could not load cookies from {cookies_file}: {e}")
 
     def load_progress(self):
         """Load download progress from JSON file"""
@@ -134,8 +168,13 @@ class TakeoutDownloader:
             if resume_pos > 0:
                 headers['Range'] = f'bytes={resume_pos}-'
             
+            # Setup cookies if available
+            cookies_dict = None
+            if self.cookies:
+                cookies_dict = self.cookies
+            
             # Start download
-            response = requests.get(url, headers=headers, stream=True, timeout=30)
+            response = requests.get(url, headers=headers, cookies=cookies_dict, stream=True, timeout=30)
             
             # Check for expired link
             if response.status_code == 403 or response.status_code == 404:
@@ -298,6 +337,7 @@ def main():
     parser.add_argument("--output-dir", "-o", default="./downloads", help="Directory to save downloads (default: ./downloads)")
     parser.add_argument("--max-workers", "-w", type=int, default=4, help="Maximum concurrent downloads (default: 4)")
     parser.add_argument("--chunk-size", "-c", type=int, default=8192, help="Download chunk size in bytes (default: 8192)")
+    parser.add_argument("--cookies", help="Path to cookies file (JSON or Netscape format)")
     
     args = parser.parse_args()
     
@@ -308,8 +348,8 @@ def main():
     downloader = TakeoutDownloader(
         output_dir=args.output_dir,
         max_workers=args.max_workers,
-        chunk_size=args.chunk_size
-    )
+        chunk_size=args.chunk_size,
+        cookies_file=args.cookies
     
     try:
         downloader.download_all(args.urls_file)
