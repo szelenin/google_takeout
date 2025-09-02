@@ -95,18 +95,28 @@ https://takeout-download.usercontent.google.com/download/takeout-20250823T223815
 
 ### Step 5: Run the Downloader
 
+#### Option A: Foreground (attached to terminal)
 ```bash
 # Run with headers (uses headers.json automatically if present)
 python google_takeout_downloader.py urls.txt
 
-# Or specify custom headers file
-python google_takeout_downloader.py urls.txt --headers custom_headers.json
-
 # Or specify custom output directory
 python google_takeout_downloader.py urls.txt --output-dir /path/to/downloads
+```
 
-# For slower connections, reduce concurrent downloads
-python google_takeout_downloader.py urls.txt --max-workers 2
+#### Option B: Background (survives SSH disconnection)
+```bash
+# Use the background script (recommended for large downloads)
+./download_background.sh urls.txt /mnt/raid1/users/sync
+
+# With additional options
+./download_background.sh urls.txt /mnt/raid1/users/sync --max-workers 2
+
+# Monitor progress
+tail -f download_YYYYMMDD_HHMMSS.log
+
+# Stop download if needed
+kill PID_NUMBER  # (shown when starting)
 ```
 
 ## Command-line Options
@@ -302,6 +312,8 @@ python google_takeout_downloader.py urls.txt \
 
 - `headers.json` - Google authentication cookies and headers (from extract_headers.py)
 - `cookies_detailed.json` - Detailed cookie information for debugging
+- `download_background.sh` - Background downloader script (survives SSH disconnection)
+- `download_YYYYMMDD_HHMMSS.log` - Download log file (when using background script)
 - `downloads/` - Directory containing downloaded files
 - `downloads/download_progress.json` - Progress tracking (safe to delete after completion)
 
