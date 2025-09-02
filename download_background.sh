@@ -40,8 +40,8 @@ echo "Output directory: $OUTPUT_DIR"
 echo "Log file: $LOG_FILE"
 echo "Additional args: $ADDITIONAL_ARGS"
 
-# Run downloader in background with nohup
-nohup python google_takeout_downloader.py "$URLS_FILE" --output-dir "$OUTPUT_DIR" $ADDITIONAL_ARGS > "$LOG_FILE" 2>&1 &
+# Run downloader in background with nohup (unbuffered output)
+nohup python -u google_takeout_downloader.py "$URLS_FILE" --output-dir "$OUTPUT_DIR" $ADDITIONAL_ARGS > "$LOG_FILE" 2>&1 &
 
 # Get the process ID
 PID=$!

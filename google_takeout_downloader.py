@@ -244,7 +244,9 @@ class TakeoutDownloader:
                         download_status.bytes_downloaded = downloaded
                         
                         # Update progress periodically
-                        if downloaded % (self.chunk_size * 100) == 0:
+                        if downloaded % (self.chunk_size * 1000) == 0:  # Every ~8MB
+                            progress_pct = (downloaded / download_status.total_bytes * 100) if download_status.total_bytes > 0 else 0
+                            print(f"  {download_status.filename}: {downloaded:,} / {download_status.total_bytes:,} bytes ({progress_pct:.1f}%)")
                             self.save_progress()
             
             # Final progress update with actual downloaded bytes
