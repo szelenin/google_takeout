@@ -110,7 +110,9 @@ def parse_curl_command(curl_cmd):
     # Extract headers from -H parameters
     header_matches = re.findall(r"-H\s+'([^:]+):\s*([^']+)'", curl_cmd)
     for header_name, header_value in header_matches:
-        headers[header_name.strip()] = header_value.strip()
+        # Clean up header values - remove newlines and extra whitespace
+        clean_value = ' '.join(header_value.split())
+        headers[header_name.strip()] = clean_value
     
     return cookies, headers
 

@@ -119,19 +119,27 @@ class TakeoutDownloader:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         return f"takeout_download_{timestamp}.zip"
 
-    def validate_zip_file(self, file_path: Path) -> bool:
-        """Validate that downloaded file is a proper ZIP archive, not HTML"""
+    def validate_download_complete(self, file_path: Path, expected_size: int) -> bool:
+        """Validate that downloaded file is complete and a proper ZIP archive"""
         try:
+            actual_size = file_path.stat().st_size
+            
             # Check if file is too small (HTML pages are usually < 50KB)
-            if file_path.stat().st_size < 50000:  # 50KB threshold
+            if actual_size < 50000:  # 50KB threshold
                 return False
+            
+            # Check if file size matches expected (within 1% tolerance for headers/compression)
+            if expected_size > 0:
+                size_diff = abs(actual_size - expected_size) / expected_size
+                if size_diff > 0.01:  # More than 1% difference
+                    return False
             
             # Try to open as ZIP file
             with zipfile.ZipFile(file_path, 'r') as zip_file:
-                # Test if we can read the file list
-                zip_file.namelist()
-                return True
-        except (zipfile.BadZipFile, OSError):
+                # Test if we can read the file list (should have content)
+                files = zip_file.namelist()
+                return len(files) > 0  # Valid ZIP should have files inside
+        except (zipfile.BadZipFile, OSError, Exception):
             return False
     
     def get_file_size_from_headers(self, url: str) -> Optional[int]:
@@ -239,17 +247,16 @@ class TakeoutDownloader:
                         if downloaded % (self.chunk_size * 100) == 0:
                             self.save_progress()
             
-            # Final progress update with actual file size
+            # Final progress update with actual downloaded bytes
             download_status.bytes_downloaded = downloaded
-            download_status.total_bytes = downloaded
-            self.save_progress()
             
-            # Validate downloaded file
-            if not self.validate_zip_file(file_path):
+            # Validate downloaded file against expected size
+            expected_size = download_status.total_bytes
+            if not self.validate_download_complete(file_path, expected_size):
                 download_status.status = "failed"
-                download_status.error_message = "Downloaded file is not a valid ZIP archive (likely HTML login page)"
+                download_status.error_message = "Downloaded file is incomplete or not a valid ZIP archive"
                 self.save_progress()
-                print(f"✗ Invalid file: {download_status.filename} - not a valid ZIP archive")
+                print(f"✗ Invalid/incomplete file: {download_status.filename} - expected {expected_size:,} bytes, got {downloaded:,} bytes")
                 return False
             
             # Mark as completed
@@ -296,18 +303,20 @@ class TakeoutDownloader:
                 # Check if file exists and validate it
                 file_path = self.output_dir / self.downloads[url].filename
                 if file_path.exists():
-                    if self.validate_zip_file(file_path):
-                        # File is valid - update status and progress to match actual file
+                    expected_size = self.downloads[url].total_bytes
+                    if self.validate_download_complete(file_path, expected_size):
+                        # File is complete and valid
                         actual_size = file_path.stat().st_size
                         self.downloads[url].status = "completed"
                         self.downloads[url].bytes_downloaded = actual_size
-                        self.downloads[url].total_bytes = actual_size
+                        if expected_size == 0:  # Update total_bytes if not set
+                            self.downloads[url].total_bytes = actual_size
                         self.downloads[url].completed_at = datetime.now().isoformat()
                         # Don't add to pending
                     else:
-                        print(f"⚠ Invalid ZIP file detected: {self.downloads[url].filename} (likely HTML, marking for re-download)")
+                        print(f"⚠ Incomplete or invalid file: {self.downloads[url].filename} (marking for re-download)")
                         self.downloads[url].status = "pending"
-                        self.downloads[url].error_message = "Previous download was HTML, not ZIP"
+                        self.downloads[url].error_message = "File incomplete or invalid"
                         pending.append(url)
                 else:
                     # File missing, re-download
