@@ -350,6 +350,7 @@ def main():
         max_workers=args.max_workers,
         chunk_size=args.chunk_size,
         cookies_file=args.cookies
+    )
     
     try:
         downloader.download_all(args.urls_file)
