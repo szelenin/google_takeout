@@ -4,7 +4,7 @@ A robust Python script for downloading Google Takeout archives with automatic re
 
 ## Features
 
-- ✅ **Cookie Authentication** - Works with "expired" Google Takeout links using browser cookies
+- ✅ **Cookie & Header Authentication** - Works with "expired" Google Takeout links using browser cookies and headers
 - ✅ **Resume capability** - Automatically resumes interrupted downloads
 - ✅ **Concurrent downloads** - Download up to 4 files simultaneously (configurable)
 - ✅ **Progress tracking** - Persistent progress saved to JSON file
@@ -41,26 +41,39 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Step 3: Extract Cookies from Browser
+### Step 3: Extract Headers and Cookies from Browser
 
-Google Takeout links require authentication cookies to work, especially after the 7-day "expiration" period. The `extract_cookies.py` script automatically extracts these from your browser.
+Google Takeout links require authentication cookies and headers to work, especially after the 7-day "expiration" period. The `extract_headers.py` script automatically extracts these from your browser.
 
 ```bash
 # Make sure you're logged into Google in Chromium/Chrome
 # Close the browser for best results (optional but recommended)
 
-# Extract cookies (still in venv)
-python extract_cookies.py
+# Extract headers and cookies (still in venv)
+python extract_headers.py
 
 # This creates two files:
-# - cookies.json (simple format for the downloader)
-# - cookies_detailed.json (detailed cookie information)
+# - headers.json (contains both cookies and headers for the downloader)
+# - cookies_detailed.json (detailed cookie information for debugging)
 ```
 
-**What the cookie extractor does:**
-1. Finds your browser's cookie database
-2. Extracts Google authentication cookies (SID, HSID, SSID, APISID, SAPISID)
-3. Saves them in JSON format for the downloader to use
+**Advanced Usage with cURL:**
+For best compatibility, you can also provide a cURL command from your browser:
+
+```bash
+# Copy a working download link as cURL from browser developer tools
+python extract_headers.py --curl "curl 'https://takeout-download...' -H 'accept: text/html...' -b 'SID=...'"
+
+# Or save cURL command to file
+echo "curl 'https://...' -H '...' -b '...'" > curl_command.txt
+python extract_headers.py --curl-file curl_command.txt
+```
+
+**What the header extractor does:**
+1. Finds your browser's cookie database and extracts Google authentication cookies
+2. Optionally parses cURL commands to extract both cookies and headers
+3. Combines browser cookies with cURL headers (cURL takes precedence)
+4. Saves everything in headers.json format for the downloader to use
 
 ### Step 4: Add Your Download URLs
 
@@ -83,14 +96,17 @@ https://takeout-download.usercontent.google.com/download/takeout-20250823T223815
 ### Step 5: Run the Downloader
 
 ```bash
-# Run with cookies (still in venv)
-python google_takeout_downloader.py urls.txt --cookies cookies.json
+# Run with headers (uses headers.json automatically if present)
+python google_takeout_downloader.py urls.txt
+
+# Or specify custom headers file
+python google_takeout_downloader.py urls.txt --headers custom_headers.json
 
 # Or specify custom output directory
-python google_takeout_downloader.py urls.txt --cookies cookies.json --output-dir /path/to/downloads
+python google_takeout_downloader.py urls.txt --output-dir /path/to/downloads
 
 # For slower connections, reduce concurrent downloads
-python google_takeout_downloader.py urls.txt --cookies cookies.json --max-workers 2
+python google_takeout_downloader.py urls.txt --max-workers 2
 ```
 
 ## Command-line Options
@@ -101,33 +117,37 @@ python google_takeout_downloader.py urls.txt --cookies cookies.json --max-worker
 - `--output-dir`, `-o` - Directory to save downloads (default: ./downloads)
 - `--max-workers`, `-w` - Maximum concurrent downloads (default: 4)
 - `--chunk-size`, `-c` - Download chunk size in bytes (default: 8192)
-- `--cookies` - Path to cookies JSON file (required for expired links)
+- `--headers` - Path to headers JSON file (optional, uses headers.json by default)
 
 ### Examples
 
 ```bash
-# Basic usage with cookies
-python google_takeout_downloader.py urls.txt --cookies cookies.json
+# Basic usage (uses headers.json automatically)
+python google_takeout_downloader.py urls.txt
 
 # Custom settings for Raspberry Pi
 python google_takeout_downloader.py urls.txt \
-  --cookies cookies.json \
   --output-dir /mnt/usb/downloads \
   --max-workers 2 \
   --chunk-size 4096
+
+# With custom headers file
+python google_takeout_downloader.py urls.txt --headers my_headers.json
 ```
 
 ## How It Works
 
-### Cookie Extraction Process
+### Header and Cookie Extraction Process
 
-1. The `extract_cookies.py` script locates your browser's SQLite cookie database:
+1. The `extract_headers.py` script locates your browser's SQLite cookie database:
    - Linux/RPi: `~/.config/chromium/Default/Cookies`
    - macOS: `~/Library/Application Support/Google/Chrome/Default/Cookies`
 
 2. It queries the database for Google-related cookies needed for authentication
 
-3. Saves cookies in JSON format that the downloader can use
+3. Optionally parses cURL commands to extract additional headers and cookies
+
+4. Saves both cookies and headers in JSON format that the downloader can use
 
 ### Download Process
 
@@ -142,10 +162,10 @@ python google_takeout_downloader.py urls.txt \
 
 **Problem**: Downloaded files are HTML login pages, not ZIP archives
 
-**Solution**: You need to extract and use cookies:
+**Solution**: You need to extract and use cookies and headers:
 ```bash
-python extract_cookies.py
-python google_takeout_downloader.py urls.txt --cookies cookies.json
+python extract_headers.py
+python google_takeout_downloader.py urls.txt
 ```
 
 ### Cookie Extraction Fails
@@ -166,6 +186,10 @@ ls ~/.config/chromium/
 
 # 4. Manual extraction (if automatic fails)
 # See "Manual Cookie Extraction" section below
+
+# 5. Use cURL extraction as fallback
+# Copy download link as cURL from browser developer tools
+python extract_headers.py --curl "your_curl_command_here"
 ```
 
 ### Network Keeps Dropping
@@ -173,7 +197,6 @@ ls ~/.config/chromium/
 **Solution**: Reduce concurrent downloads and chunk size:
 ```bash
 python google_takeout_downloader.py urls.txt \
-  --cookies cookies.json \
   --max-workers 1 \
   --chunk-size 2048
 ```
@@ -185,6 +208,7 @@ python google_takeout_downloader.py urls.txt \
 **Solution**: 
 - If it's been more than 7 days AND you've logged out of Google, you'll need new takeout links
 - As long as you stay logged in, cookies should keep working beyond 7 days
+- Try extracting fresh headers with cURL: Copy a working download as cURL from browser developer tools
 
 ## Manual Cookie Extraction
 
@@ -203,14 +227,19 @@ If automatic extraction doesn't work, you can manually extract cookies:
    - `APISID`
    - `SAPISID`
 
-6. Create `cookies.json` manually:
+6. Create `headers.json` manually:
 ```json
 {
-  "SID": "paste_your_SID_value_here",
-  "HSID": "paste_your_HSID_value_here",
-  "SSID": "paste_your_SSID_value_here",
-  "APISID": "paste_your_APISID_value_here",
-  "SAPISID": "paste_your_SAPISID_value_here"
+  "cookies": {
+    "SID": "paste_your_SID_value_here",
+    "HSID": "paste_your_HSID_value_here",
+    "SSID": "paste_your_SSID_value_here",
+    "APISID": "paste_your_APISID_value_here",
+    "SAPISID": "paste_your_SAPISID_value_here"
+  },
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (compatible browser string)"
+  }
 }
 ```
 
@@ -220,7 +249,7 @@ If automatic extraction doesn't work, you can manually extract cookies:
 2. Go to any Google page
 3. Click the extension icon
 4. Export cookies as JSON
-5. Save as `cookies.json`
+5. Format as headers.json with cookies and headers sections
 
 ## Tips for Raspberry Pi
 
@@ -235,7 +264,7 @@ screen -S takeout
 
 # Activate venv and run downloader
 source venv/bin/activate
-python google_takeout_downloader.py urls.txt --cookies cookies.json
+python google_takeout_downloader.py urls.txt
 
 # Detach from screen: Ctrl+A then D
 # Reattach later: screen -r takeout
@@ -263,20 +292,19 @@ sudo mount /dev/sda1 /mnt/usb
 
 # Download directly to USB
 python google_takeout_downloader.py urls.txt \
-  --cookies cookies.json \
   --output-dir /mnt/usb/google_takeout
 ```
 
 ## Files Created
 
-- `cookies.json` - Google authentication cookies (from extract_cookies.py)
-- `cookies_detailed.json` - Detailed cookie information
+- `headers.json` - Google authentication cookies and headers (from extract_headers.py)
+- `cookies_detailed.json` - Detailed cookie information for debugging
 - `downloads/` - Directory containing downloaded files
 - `downloads/download_progress.json` - Progress tracking (safe to delete after completion)
 
 ## Security Note
 
-⚠️ **Keep your cookies.json file secure!** It contains authentication tokens that provide access to your Google account. 
+⚠️ **Keep your headers.json file secure!** It contains authentication tokens that provide access to your Google account. 
 - Never share this file
 - Never commit it to version control
 - Delete it after downloads complete if desired

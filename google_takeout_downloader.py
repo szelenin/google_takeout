@@ -31,7 +31,7 @@ class DownloadStatus:
     retry_count: int = 0
 
 class TakeoutDownloader:
-    def __init__(self, output_dir: str, max_workers: int = 4, chunk_size: int = 8192, cookies_file: Optional[str] = None):
+    def __init__(self, output_dir: str, max_workers: int = 4, chunk_size: int = 8192, headers_file: Optional[str] = None):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.max_workers = max_workers
@@ -40,42 +40,40 @@ class TakeoutDownloader:
         self.downloads: Dict[str, DownloadStatus] = {}
         self.lock = threading.Lock()
         self.cookies = {}
+        self.custom_headers = {}
         
-        # Load cookies if provided
-        if cookies_file:
-            self.load_cookies(cookies_file)
+        # Load headers and cookies
+        if headers_file:
+            self.load_headers(headers_file)
+        elif Path("headers.json").exists():
+            self.load_headers("headers.json")
         
         # Load existing progress
         self.load_progress()
 
-    def load_cookies(self, cookies_file: str):
-        """Load cookies from file (JSON or Netscape format)"""
+    def load_headers(self, headers_file: str):
+        """Load headers and cookies from JSON file"""
         try:
-            with open(cookies_file, 'r') as f:
-                content = f.read()
+            with open(headers_file, 'r') as f:
+                data = json.load(f)
                 
-                # Try JSON format first
-                if content.strip().startswith('[') or content.strip().startswith('{'):
-                    cookies_data = json.loads(content)
-                    if isinstance(cookies_data, list):
-                        # Cookie-Editor format
-                        for cookie in cookies_data:
-                            if 'name' in cookie and 'value' in cookie:
-                                self.cookies[cookie['name']] = cookie['value']
-                    elif isinstance(cookies_data, dict):
-                        # Simple key-value format
-                        self.cookies = cookies_data
-                else:
-                    # Netscape cookie format (from curl)
-                    for line in content.split('\n'):
-                        if line and not line.startswith('#'):
-                            parts = line.strip().split('\t')
-                            if len(parts) >= 7:
-                                self.cookies[parts[5]] = parts[6]
+                # Load cookies
+                if 'cookies' in data:
+                    self.cookies = data['cookies']
+                    print(f"Loaded {len(self.cookies)} cookies from {headers_file}")
                 
-                print(f"Loaded {len(self.cookies)} cookies from {cookies_file}")
+                # Load custom headers
+                if 'headers' in data:
+                    self.custom_headers = data['headers']
+                    print(f"Loaded {len(self.custom_headers)} custom headers from {headers_file}")
+                
+                # Backward compatibility - if file is old format (just cookies)
+                if 'cookies' not in data and 'headers' not in data:
+                    self.cookies = data
+                    print(f"Loaded {len(self.cookies)} cookies from {headers_file} (legacy format)")
+                
         except Exception as e:
-            print(f"Warning: Could not load cookies from {cookies_file}: {e}")
+            print(f"Warning: Could not load headers from {headers_file}: {e}")
 
     def load_progress(self):
         """Load download progress from JSON file"""
@@ -163,29 +161,10 @@ class TakeoutDownloader:
                 resume_pos = file_path.stat().st_size
                 print(f"Resuming {download_status.filename} from byte {resume_pos}")
             
-            # Setup headers to match your working browser request
-            headers = {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
-                'Priority': 'u=0, i',
-                'Sec-CH-UA': '"Chromium";v="137", "Not/A)Brand";v="24"',
-                'Sec-CH-UA-Arch': '"arm"',
-                'Sec-CH-UA-Bitness': '"64"',
-                'Sec-CH-UA-Full-Version-List': '"Chromium";v="137.0.7151.55", "Not/A)Brand";v="24.0.0.0"',
-                'Sec-CH-UA-Mobile': '?0',
-                'Sec-CH-UA-Model': '""',
-                'Sec-CH-UA-Platform': '"Linux"',
-                'Sec-CH-UA-Platform-Version': '"6.12.25"',
-                'Sec-CH-UA-WoW64': '?0',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'Upgrade-Insecure-Requests': '1',
-                'User-Agent': 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
-                'X-Client-Data': 'CIfpygE='
-            }
+            # Setup headers from headers.json
+            headers = self.custom_headers.copy() if self.custom_headers else {}
             
+            # Add range header for resume (must be last)
             if resume_pos > 0:
                 headers['Range'] = f'bytes={resume_pos}-'
             
@@ -358,7 +337,7 @@ def main():
     parser.add_argument("--output-dir", "-o", default="./downloads", help="Directory to save downloads (default: ./downloads)")
     parser.add_argument("--max-workers", "-w", type=int, default=4, help="Maximum concurrent downloads (default: 4)")
     parser.add_argument("--chunk-size", "-c", type=int, default=8192, help="Download chunk size in bytes (default: 8192)")
-    parser.add_argument("--cookies", help="Path to cookies file (JSON or Netscape format)")
+    parser.add_argument("--headers", help="Path to headers file (JSON format with cookies and headers)")
     
     args = parser.parse_args()
     
@@ -370,7 +349,7 @@ def main():
         output_dir=args.output_dir,
         max_workers=args.max_workers,
         chunk_size=args.chunk_size,
-        cookies_file=args.cookies
+        headers_file=args.headers
     )
     
     try:
