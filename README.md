@@ -274,7 +274,10 @@ python google_takeout_downloader.py urls.txt
 
 ```bash
 # In another terminal, watch the progress file
-watch -n 5 'cat downloads/download_progress.json | python3 -m json.tool | tail -20'
+watch -n 2 'cat /path/to/output/download_progress.json | python3 -m json.tool | grep -E "(status|bytes_downloaded|filename)"'
+
+# Or watch file sizes grow
+watch -n 2 'ls -lh /path/to/output/*.zip'
 
 # Check disk space
 df -h

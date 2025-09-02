@@ -239,6 +239,11 @@ class TakeoutDownloader:
                         if downloaded % (self.chunk_size * 100) == 0:
                             self.save_progress()
             
+            # Final progress update with actual file size
+            download_status.bytes_downloaded = downloaded
+            download_status.total_bytes = downloaded
+            self.save_progress()
+            
             # Validate downloaded file
             if not self.validate_zip_file(file_path):
                 download_status.status = "failed"
