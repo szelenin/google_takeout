@@ -287,6 +287,19 @@ class TakeoutDownloader:
                 # Retry failed downloads (with limit)
                 if self.downloads[url].retry_count < 3:
                     pending.append(url)
+            elif self.downloads[url].status == "completed":
+                # Validate completed files to ensure they're real ZIP files
+                file_path = self.output_dir / self.downloads[url].filename
+                if file_path.exists():
+                    if not self.validate_zip_file(file_path):
+                        print(f"⚠ Invalid ZIP file detected: {self.downloads[url].filename} (likely HTML, marking for re-download)")
+                        self.downloads[url].status = "pending"
+                        self.downloads[url].error_message = "Previous download was HTML, not ZIP"
+                        pending.append(url)
+                else:
+                    # File missing, re-download
+                    self.downloads[url].status = "pending"
+                    pending.append(url)
         return pending
 
     def print_summary(self):
