@@ -46,13 +46,16 @@ def extract_google_cookies(cookies_db_path):
         conn = sqlite3.connect(tmp_path)
         cursor = conn.cursor()
         
-        # Query for Google-related cookies
+        # Query for Google-related cookies (including all subdomains)
         query = """
         SELECT host_key, name, value, path, expires_utc, is_secure, is_httponly
         FROM cookies
         WHERE host_key LIKE '%google.com%' 
            OR host_key LIKE '%googleapis.com%'
            OR host_key LIKE '%googleusercontent.com%'
+           OR host_key LIKE '%usercontent.google.com%'
+           OR host_key LIKE '%.google.com'
+           OR host_key = 'google.com'
         """
         
         cursor.execute(query)

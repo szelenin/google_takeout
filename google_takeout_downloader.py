@@ -163,8 +163,21 @@ class TakeoutDownloader:
                 resume_pos = file_path.stat().st_size
                 print(f"Resuming {download_status.filename} from byte {resume_pos}")
             
-            # Setup headers for resume
-            headers = {}
+            # Setup headers for resume and browser simulation
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chromium/108.0.0.0 Chrome/108.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1'
+            }
+            
             if resume_pos > 0:
                 headers['Range'] = f'bytes={resume_pos}-'
             
@@ -174,7 +187,7 @@ class TakeoutDownloader:
                 cookies_dict = self.cookies
             
             # Start download
-            response = requests.get(url, headers=headers, cookies=cookies_dict, stream=True, timeout=30)
+            response = requests.get(url, headers=headers, cookies=cookies_dict, stream=True, timeout=30, allow_redirects=True)
             
             # Check for expired link
             if response.status_code == 403 or response.status_code == 404:
