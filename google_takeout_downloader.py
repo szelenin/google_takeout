@@ -11,6 +11,7 @@ import time
 import argparse
 import requests
 import threading
+import zipfile
 from pathlib import Path
 from urllib.parse import urlparse, unquote
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -118,6 +119,21 @@ class TakeoutDownloader:
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         return f"takeout_download_{timestamp}.zip"
 
+    def validate_zip_file(self, file_path: Path) -> bool:
+        """Validate that downloaded file is a proper ZIP archive, not HTML"""
+        try:
+            # Check if file is too small (HTML pages are usually < 50KB)
+            if file_path.stat().st_size < 50000:  # 50KB threshold
+                return False
+            
+            # Try to open as ZIP file
+            with zipfile.ZipFile(file_path, 'r') as zip_file:
+                # Test if we can read the file list
+                zip_file.namelist()
+                return True
+        except (zipfile.BadZipFile, OSError):
+            return False
+    
     def get_file_size_from_headers(self, url: str) -> Optional[int]:
         """Get file size from HTTP headers without downloading"""
         try:
@@ -144,10 +160,14 @@ class TakeoutDownloader:
         download_status = self.downloads[url]
         file_path = self.output_dir / download_status.filename
         
-        # Check if already completed
+        # Check if already completed and validate file
         if download_status.status == "completed" and file_path.exists():
-            print(f"✓ Already completed: {download_status.filename}")
-            return True
+            if self.validate_zip_file(file_path):
+                print(f"✓ Already completed: {download_status.filename}")
+                return True
+            else:
+                print(f"⚠ Invalid ZIP file detected: {download_status.filename} (likely HTML, re-downloading)")
+                download_status.status = "pending"  # Reset to re-download
         
         # Update status to downloading
         download_status.status = "downloading"
@@ -218,6 +238,14 @@ class TakeoutDownloader:
                         # Update progress periodically
                         if downloaded % (self.chunk_size * 100) == 0:
                             self.save_progress()
+            
+            # Validate downloaded file
+            if not self.validate_zip_file(file_path):
+                download_status.status = "failed"
+                download_status.error_message = "Downloaded file is not a valid ZIP archive (likely HTML login page)"
+                self.save_progress()
+                print(f"✗ Invalid file: {download_status.filename} - not a valid ZIP archive")
+                return False
             
             # Mark as completed
             download_status.status = "completed"
