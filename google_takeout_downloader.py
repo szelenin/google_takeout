@@ -163,19 +163,27 @@ class TakeoutDownloader:
                 resume_pos = file_path.stat().st_size
                 print(f"Resuming {download_status.filename} from byte {resume_pos}")
             
-            # Setup headers for resume and browser simulation
+            # Setup headers to match your working browser request
             headers = {
-                'User-Agent': 'Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chromium/108.0.0.0 Chrome/108.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate',
-                'DNT': '1',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
+                'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8',
+                'Priority': 'u=0, i',
+                'Sec-CH-UA': '"Chromium";v="137", "Not/A)Brand";v="24"',
+                'Sec-CH-UA-Arch': '"arm"',
+                'Sec-CH-UA-Bitness': '"64"',
+                'Sec-CH-UA-Full-Version-List': '"Chromium";v="137.0.7151.55", "Not/A)Brand";v="24.0.0.0"',
+                'Sec-CH-UA-Mobile': '?0',
+                'Sec-CH-UA-Model': '""',
+                'Sec-CH-UA-Platform': '"Linux"',
+                'Sec-CH-UA-Platform-Version': '"6.12.25"',
+                'Sec-CH-UA-WoW64': '?0',
                 'Sec-Fetch-Dest': 'document',
                 'Sec-Fetch-Mode': 'navigate',
                 'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1'
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1',
+                'User-Agent': 'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36',
+                'X-Client-Data': 'CIfpygE='
             }
             
             if resume_pos > 0:
